@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { supabase } from "../supabase";
 
 function Booking() {
   const location = useLocation();
@@ -12,6 +13,7 @@ function Booking() {
   const [returnDate, setReturnDate] = useState("");
   const [pickupLocation, setPickupLocation] = useState("");
   const [selectedCar, setSelectedCar] = useState(carState.carName || "");
+  const [loading, setLoading] = useState(false);
 
   const calculateDays = () => {
     if (!pickupDate || !returnDate) return 0;
@@ -24,7 +26,7 @@ function Booking() {
   const days = calculateDays();
   const totalCost = days * (carState.pricePerDay || 0);
 
-  function handleBooking() {
+  async function handleBooking() {
     if (!name || !phone || !pickupDate || !returnDate || !pickupLocation || !selectedCar) {
       alert("Please fill all the details");
       return;
@@ -35,25 +37,32 @@ function Booking() {
       return;
     }
 
-    // Save booking to localStorage
-    const booking = {
-      id: Date.now(),
-      name,
-      phone,
-      car: selectedCar,
-      carType: carState.carType || "N/A",
-      pickupDate,
-      returnDate,
-      pickupLocation,
-      days,
-      totalCost,
-      pricePerDay: carState.pricePerDay || 0,
-      bookedAt: new Date().toISOString(),
-    };
+    setLoading(true);
 
-    const existing = JSON.parse(localStorage.getItem("carBookings") || "[]");
-    existing.push(booking);
-    localStorage.setItem("carBookings", JSON.stringify(existing));
+    const { data, error } = await supabase
+      .from("car_bookings")
+      .insert([
+        {
+          name: name,
+          phone: phone,
+          car: selectedCar,
+          car_type: carState.carType || "N/A",
+          pickup_date: pickupDate,
+          return_date: returnDate,
+          pickup_location: pickupLocation,
+          days: days,
+          price_per_day: carState.pricePerDay || 0,
+          total_cost: totalCost,
+        },
+      ]);
+
+    setLoading(false);
+
+    if (error) {
+      console.error(error);
+      alert("Booking failed. Please try again.");
+      return;
+    }
 
     alert(`🎉 Booking confirmed!\n\nCar: ${selectedCar}\nDays: ${days}\nTotal: ₹${totalCost.toLocaleString()}`);
     navigate("/history");
@@ -156,8 +165,12 @@ function Booking() {
           </div>
         )}
 
-        <button className="btn btn-primary btn-lg btn-full" onClick={handleBooking}>
-          Confirm Booking
+        <button
+          className="btn btn-primary btn-lg btn-full"
+          onClick={handleBooking}
+          disabled={loading}
+        >
+          {loading ? "Booking..." : "Confirm Booking"}
         </button>
       </div>
     </main>
